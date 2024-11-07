@@ -1,0 +1,111 @@
+people<-read.delim("clipboard",stringsAsFactors=T) #imports the data from clipboard to R
+
+class(people) # displays the type of the object
+#[1] "data.frame"
+class(people$sex)
+#[1] "factor"
+class(people$height)
+#[1] "numeric"
+# Notice the difference between variables with text values (factor) and with numbers (numeric or integer).
+# The following functions threat these two types differently.
+
+## descriptive statistics
+summary(people) #displays summary of the data
+#  eye.color  sex        height     
+#  blue :10   F:11   Min.   :160.0  
+#  brown:13   M:12   1st Qu.:174.5  
+#                    Median :180.0  
+#                    Mean   :179.2  
+#                    3rd Qu.:185.0  
+#                    Max.   :200.0  
+
+mean(people$height) # computes arithmetic mean of height
+#[1] 179.2391
+var(people$height) # variance 
+#[1] 81.36067
+sd(people$height) # standard deviation
+#[1] 9.020015
+sqrt(var(people$height)) #standard deviation is just square root of variance
+length(people$height) # length of the vector (i.e. number of observations)
+
+# SE = SD / sqrt(N)
+sd(people$height)/sqrt(length(people$height)) # standard error of mean
+#[1] 1.880803
+
+## comparison of values, TRUE or FALSE outcome
+people$height>180     # larger than
+people$height<=170    # smaller than or equal
+people$eye.color=="blue" # equals   # make sure to use two equal signs, one equal sign rewrites your data
+people$eye.color!="blue" # does not equal
+
+## selection by indices and/or by logical comparison
+# vector[index]
+# table[rows.i,columns.i]
+people$height[9:12]     # select 9th to 12th value
+people[,3]        # select all rows, third column
+people[people$sex=="M",]    # select all columns for men
+people[people$sex=="M",3]   # select third column (i.e. height) for men
+people$height[people$sex=="M"]    # select height of men
+
+## calculate summary statistics for subset of data
+mean(people$height[people$sex=="M"]) # mean height of men
+# [1] 183.125
+sd(people$height[people$sex=="M"])/sqrt(length(people$height[people$sex=="M"])) # standard error for men
+# [1] 2.363008
+# previous line is too long and calculation for all categories requires manual typing of factor levels.
+# repetitive subsetting can be substituted to shorten the code, but is inconvenient for many categories.
+males<-people$height[people$sex=="M"]
+sd(males)/sqrt(length(males)) # looks nice but imagine doing this for many categories...
+# [1] 2.363008
+
+## calculate mean (or other function) for each group separately
+tapply(people$height,people$sex,mean) # arguments: numbers, grouping variable, function
+aggregate(height~sex,data=people,mean) # using formula: numbers ~ groups
+aggregate(height~sex+eye.color,data=people,mean) # multiple grouping variables
+tapply(people$height,list(people$sex,people$eye.color),mean) # multiple grouping variables must be combined into a single item in tapply
+
+## get functions which are not available in base R
+# you can install additional package
+library(plotrix)
+std.error(people$height)
+# or other package
+library(sciplot)
+se(people$height)
+# or you can create your own function
+my.se<-function(x) {sd(x)/sqrt(length(x))}
+my.se(people$height)
+
+# use of functions in aggregate
+aggregate(height~sex,data=people,std.error)
+aggregate(height~sex,data=people,my.se)
+aggregate(height~sex,data=people,function(x) {sd(x)/sqrt(length(x))})
+
+## plot histogram
+hist(people$height) # plots a histogram of the height data
+hist(people$height,xlab="height (cm)",main="",col="green",las=1) # modifies the plot
+abline(v=c(mean(people$height), # long commands can be split after comma
+           mean(people$height)+sd(people$height),
+           mean(people$height)-sd(people$height)
+           ),col="blue",lwd=3,lty=c(1,2,2)) # add plot elements (here e.g. vertical lines for mean and mean+/-s.d.)
+with(people,abline(v=c(mean(height), 
+                       mean(height)+sd(height),
+                       mean(height)-sd(height)
+                       ),col="blue",lwd=3,lty=c(1,2,2))) # avoid repetitive specification of table name
+
+## plot boxplot
+# you can use plot(x,y) or plot(formula,data), formula is y~x (y depends on x)
+# the following 3 commands provide the same outcome, I prefer the last one.
+plot(x=people$sex,y=people$height)  # boxplot is the default type of plot if x is factor (does not work for class character)
+plot(height~sex,data=people)        # formula: y~x (y depends on x)
+boxplot(height~sex,data=people)     # Plots a boxplot displying the heights of males and females
+
+boxplot(height~sex+eye.color,data=people) # multiple classification variables
+
+my.colour<-c("red","green")
+par(mar=c(2,4,0,0)) # adjust plot margins
+boxplot(height~sex+eye.color,data=people,col=my.colour,
+        xaxt="n",xlab="",ylab="height (cm)",las=2)
+axis(1,at=c(1.5,3.5),labels=levels(people$eye.color),tck=F)
+legend(x=0.5,y=200,legend=levels(people$sex),fill=my.colour)
+dev.off() # switch off the ploting device (erase the plot and restore default settings)
+?par # see the list of all graphical parameters
