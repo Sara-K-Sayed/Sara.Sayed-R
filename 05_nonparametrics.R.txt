@@ -1,0 +1,207 @@
+###Hair Length
+hair<-read.delim("clipboard",stringsAsFactors=T)
+summary(hair)
+
+boxplot(hl~faculty,data=hair) # shows positively skewed distribution (longer upper tails)
+# and an increase of variance with an increase of mean
+
+boxplot(log(hl)~faculty,data=hair) # shows improved symmetricity and homogeneity of variance 
+t.test(log(hl)~faculty,data=hair)
+# t = -3.7685, df = 27.78, p-value = 0.0007863
+# sample estimates:
+# mean in group Law mean in group Sci 
+#          1.626114          2.706902
+gm<-exp(tapply(log(hair$hl),hair$faculty,mean)) # geometric means
+gm
+gm[2]/gm[1] # ratio of geometric means
+#   Sci 
+# 2.947 
+# the hair length of guys at the faculty of science is 2.85 times longer compared to the faculty of Law
+
+boxplot(log10(hl)~faculty,data=hair) # different base of logarithm makes exactly the same change in shape of distribution, but change the units differently
+10^tapply(log10(hair$hl),hair$faculty,mean) # geometric means - compatible back-transformation must be used
+
+### Illustration of plotting on log-axis 
+## pre-calculate summary statistics after log transformation (like for normal plots but with log of the numbers)
+means<-tapply(log(hair$hl),hair$faculty,mean)
+sds<-tapply(log(hair$hl),hair$faculty,sd)
+ns<-tapply(log(hair$hl),hair$faculty,length) # numbers of observations (length of the vectors, transformation not necessary)
+ses<-sds/sqrt(ns)
+lower<-means+ses*qt(0.025,ns-1) # lower limit of confidence interval
+upper<-means+ses*qt(0.975,ns-1)
+  # previous lines can be simplified using e.g. CI function in Rmisc package:
+  library(Rmisc)
+  ci<-as.data.frame(aggregate(log(hl)~faculty,data=hair,CI)$"log(hl)") # the outcome of aggregate has a bit more complicated structure
+
+
+## plot results "back-transformed" to the original scale (like for normal plots, but with exp of the precalculated values)
+# barplot on linear scale (asymetric error bars)
+aa<-barplot(exp(means), ylim=c(0, 25), ylab="Hair length [mm]")
+arrows(x0=aa, y0=exp(upper), y1=exp(lower), code=3, angle=90)
+  # same thing but using the result of Rmisc package
+  aa<-barplot(exp(ci$mean), ylim=c(0, 25), ylab="Hair length [mm]")
+  arrows(x0=aa, y0=exp(ci$upper), y1=exp(ci$lower), code=3, angle=90)
+
+
+# barplot on log scale (symmetric error bars, where is 0?, ho many times is one group bigger than the other?)
+aa<-barplot(exp(means), ylim=c(2, 25), log="y", ylab="Hair length [mm]",xpd=F)
+arrows(x0=aa, y0=exp(upper), y1=exp(lower), code=3, angle=90)
+
+# plot showing just means and CI on linear scale (without grey bars)
+plot(exp(means),ylim=c(0,25),xlim=c(0.5,2.5))
+arrows(x0=1:2, y0=exp(upper), y1=exp(lower), code=3, angle=90)
+
+# same plot, nice enough to be published
+plot(exp(means)~c(1:2),ylim=c(0,25),xlim=c(0.5,2.5),pch=16,cex=1.5,
+     xaxt="n",xlab="faculty",ylab="hair length (cm) +/- CI")
+arrows(x0=1:2, y0=exp(upper), y1=exp(lower), code=3, angle=90,length=0.1)
+axis(1,at=1:2,labels=c("Law","Science"))
+
+# similar plot with log scale
+plot(exp(means),ylim=c(3,25),xlim=c(0.5,2.5),log="y")
+arrows(x0=1:2, y0=exp(upper), y1=exp(lower), code=3, angle=90)
+
+### Level of education (two-sample test )
+education<-read.delim("clipboard",stringsAsFactors=T)
+summary(education)
+#       educ       educNum         town    
+# bachelor:20   Min.   :1.00   CB    :100  
+# basic   :50   1st Qu.:1.75   Pilsen:100  
+# high    :88   Median :2.00               
+# master  :42   Mean   :2.27               
+#               3rd Qu.:3.00               
+#               Max.   :4.00          
+wilcox.test(educNum~town,data=education)
+# 
+# Wilcoxon rank sum test with continuity correction
+# 
+# data:  educNum by town
+# W = 5915, p-value = 0.01779
+# alternative hypothesis: true location shift is not equal to 0        
+boxplot(educNum~town,data=education)
+par(mfrow=c(2,1),mar=c(2,2,0,0))
+with(education,tapply(educNum,town,hist,breaks=1:5-0.5,main=NA))
+dev.off()
+
+### Pizza (paired test with ordinal data)
+pizza<-read.delim("clipboard",stringsAsFactors=T) 
+summary(pizza)
+#     rating           cook   
+# Min.   :1.0   Francesco:10  
+# 1st Qu.:1.0   Giacomo  :10  
+# Median :1.5                 
+# Mean   :1.7                 
+# 3rd Qu.:2.0                 
+# Max.   :4.0                 
+wilcox.test(rating~cook,data=pizza,paired=T) # the result will include two warnings (about ties and zeros), but it is fine.
+# 
+#         Wilcoxon signed rank test with continuity correction
+# 
+# data:  rating by cook
+# V = 8.5, p-value = 0.3859
+# alternative hypothesis: true location shift is not equal to 0
+# 
+# Warning messages:
+# 1: In wilcox.test.default(x = DATA[[1L]], y = DATA[[2L]], ...) :
+#   cannot compute exact p-value with ties
+# 2: In wilcox.test.default(x = DATA[[1L]], y = DATA[[2L]], ...) :
+#   cannot compute exact p-value with zeroeswith(pizza,hist(rating[cook=="Francesco"]-rating[cook=="Giacomo"])) # Francesco has better evaluation # use with() function to avoid repeating pizza$
+
+# use of alternative data arrangement with
+pizza2<-read.delim("clipboard") 
+summary(pizza2)
+#       Francesco   Giacomo     
+#  Min.   :1.0   Min.   :1.0  
+#  1st Qu.:1.0   1st Qu.:1.0  
+#  Median :1.0   Median :2.0  
+#  Mean   :1.5   Mean   :1.9  
+#  3rd Qu.:2.0   3rd Qu.:2.0  
+#  Max.   :3.0   Max.   :4.0  
+wilcox.test(pizza2$Francesco,pizza2$Giacomo, paired=T)
+hist(pizza2$Francesco-pizza2$Giacomo)
+
+###Wine
+wine<-read.delim("clipboard",stringsAsFactors=T)
+summary(wine)
+# region      rating      
+# AM:12   Min.   : 1.000  
+# FS:12   1st Qu.: 3.000  
+#         Median : 5.000  
+#         Mean   : 5.583  
+#         3rd Qu.: 8.000  
+#         Max.   :10.000  
+boxplot(rating~region,data=wine)
+hist(wine$rating[wine$region=="AM"],breaks=10)
+hist(wine$rating[wine$region=="FS"],breaks=10)
+wilcox.test(rating~region,data=wine) #Mann-Whitney test
+#   Wilcoxon rank sum test with continuity correction
+# 
+# data:  rating by region
+# W = 94, p-value = 0.207
+# alternative hypothesis: true location shift is not equal to 0
+# 
+# Warning message:
+# In wilcox.test.default(x = c(10L, 8L, 7L, 5L, 10L, 10L, 3L, 4L,  :
+#   cannot compute exact p-value with ties
+
+# If observed and expected U is calculated in excel, this is how to get p-value:
+pnorm(94,72,17.32051,lower.tail=F)*2
+
+## Permutation test
+library(coin) ##This library must be first installed
+oneway_test(rating~region,data=wine,distribution=approximate(nresample=1000))
+## Approximate the distribution of test statistic using 1000 permutations.
+## This number of permutations implies minimal achievable p-value = 0.001
+## You may get slightly different result due to the randomization procedure.
+#         Approximative Two-Sample Fisher-Pitman Permutation Test
+# 
+# data:  rating by region (AM, FS)
+# Z = 1.385, p-value = 0.189
+# alternative hypothesis: true mu is not equal to 0
+
+
+### bootstrap vs. permutation
+# permutation shuffles (without replacement) assignment of numbers to categories to get p value
+permutations<-function(groups,numbers,P) {
+  # This functions performs a permutation test analogous to two-sample two-sided t-test.
+  # groups - factor with two levels
+  # numbers - numeric vector
+  # P - number of permutations
+  temp<-tapply(numbers,groups,mean)
+  obs.diff<-(temp[2]-temp[1])^2 # real difference between groups (works for 2 groups only). In real tests, t or F values are actually compared
+  perm.diff<-NA
+  for (i in 1:P) {
+    temp<-tapply(numbers,sample(groups,replace=F),mean)
+    perm.diff[i]<-(temp[2]-temp[1])^2 # differences between randomly assigned groups
+    if (i%%10000==0) cat("\r",i/P*100,"% ") # countdown for large number of permutations
+  }
+  hist(perm.diff,breaks=50,xlim=c(0,max(c(obs.diff,max(perm.diff)))))
+  abline(v=obs.diff,col="red")
+  return(sum(perm.diff>obs.diff)/P) # p-value: how many times was the difference based on random assignment larger than difference based on true assignment (divide by number of permutations to get proportion and multiply by two to make two sided test)
+  # value - permutation based p-value
+}
+e<-c(rnorm(50),rnorm(50)+0.5)
+g<-c(rep("A",50),rep("B",50))
+boxplot(e~g)
+t.test(e~g) # conventional t.test
+permutations(groups=g,numbers=e,P=100000) # permutation test
+oneway_test(e~as.factor(g),distribution=approximate(nresample=100000))
+
+# bootstrap randomly selects (with replacement) numbers to get precision of parameter estimate (like standard error, i.e. small value, means high confidence)
+# "non-parametric" bootstrap is applied to phylogenetic trees (not any precision of parameter is evaluated, but reliability of tree topology). Columns of sequence matrices are selected, and it is counted how many times each branch occurred (100% means that particular branch occurred in all bootstraps, i.e. high confidence)
+bootstrap<-function(data,B) {
+  # data - numeric vector
+  # B - number of bootstraps
+  temp<-NA
+  for (i in 1:B) temp[i]<-mean(sample(data,replace=T))
+  hist(data)
+  hist(temp,add=T,col="blue",border="blue")
+  return(sd(temp))
+  # value - bootstrapped standard error
+}
+d<-rnorm(1000)
+sd(d)/sqrt(length(d)) # parametric se
+bootstrap(d,1000) # bootstrap se (standard deviation of many sample means)
+
+
+

@@ -1,0 +1,318 @@
+###Task 1
+biomass<-read.delim("clipboard",stringsAsFactors=T)
+summary(biomass)
+#          Fertilizer    Biomass     
+#  Control      :6    Min.   : 74.0  
+#  Mineral      :6    1st Qu.:131.8  
+#  MinSlow      :6    Median :147.0  
+#  NitrateAmm   :6    Mean   :142.2  
+#  OrganicManure:6    3rd Qu.:164.8  
+#                     Max.   :190.0  
+
+  # illustrate variance decomposition:
+  par(mfrow=c(1,4)) #split plotting device
+  boxplot(Biomass~Fertilizer, data=biomass,range=0) #grouped data
+  boxplot(biomass$Biomass,range=0, main="total") #total variability
+  boxplot(tapply(biomass$Biomass,biomass$Fertilizer,mean),ylim=range(biomass$Biomass),range=0, main="group") #variability between groups
+  boxplot(residuals(aov(Biomass~Fertilizer,data=biomass)),ylim=range(biomass$Biomass)-mean(biomass$Biomass),range=0, main="residual") #variability within groups (residuals)
+  par(mfrow=c(1,1)) #restore plotting device
+
+aov.b<-aov(Biomass~Fertilizer, data=biomass) # Fits the ANOVA model
+plot(aov.b)#Displays four plots for displaying the pattern of residuals. Useful for checking the ANOVA assumptions
+#plots 2 (Normal Q-Q; normality of data) and 3 (Scale-Location; homogeneity of variances) are the most useful
+## assumptions OK
+
+summary(aov.b) # Displays results of the ANOVA model
+#             Df Sum Sq Mean Sq F value   Pr(>F)    
+# Fertilizer   4  26710    6677   46.08 3.49e-11 ***
+# Residuals   25   3622     145                     
+
+##Computation of explained variability
+26710/(26710+3622)
+# [1] 0.8805882
+# summary.lm(aov.b)$r.squared # just to show that explained variation is the same as R2 from linear regression (to be explained in next class)
+
+TukeyHSD(aov.b) #Computes Tukey honestly significant difference post-hoc test
+#   Tukey multiple comparisons of means
+#     95% family-wise confidence level
+# 
+# Fit: aov(formula = Biomass ~ Fertilizer, data = biomass)
+# 
+# $Fertilizer
+#                                 diff        lwr        upr     p adj
+# Mineral-Control           69.6666667  49.255940  90.077393 0.0000000
+# MinSlow-Control           86.0000000  65.589273 106.410727 0.0000000
+# NitrateAmm-Control        47.1666667  26.755940  67.577393 0.0000038
+# OrganicManure-Control     68.8333333  48.422607  89.244060 0.0000000
+# MinSlow-Mineral           16.3333333  -4.077393  36.744060 0.1626768
+# NitrateAmm-Mineral       -22.5000000 -42.910727  -2.089273 0.0255799
+# OrganicManure-Mineral     -0.8333333 -21.244060  19.577393 0.9999498
+# NitrateAmm-MinSlow       -38.8333333 -59.244060 -18.422607 0.0000749
+# OrganicManure-MinSlow    -17.1666667 -37.577393   3.244060 0.1299692
+# OrganicManure-NitrateAmm  21.6666667   1.255940  42.077393 0.0335634
+
+### Boxplot of ANOVA results
+boxplot(Biomass~Fertilizer, data=biomass, las=2, ylim=c(70, 200), col="grey") # ... make labels vertical, make space for letters 
+text(c("a","b","b","c","b"), x=1:5, y=rep(200,5)) # letters of Tukey test (same letter for no difference) with coordinates where to draw them
+# come up with the letters yourself, or use some of available packages, e.g.:
+library(multcompView)
+multcompLetters(TukeyHSD(aov.b)$Fertilizer[,4]) # beware of different order of factor levels
+
+### Barplot of ANOVA results with 95% CI
+## pre-compute means
+means<-tapply(biomass$Biomass,biomass$Fertilizer,mean)
+##pre-compute confidence intervals
+# EITHER for each group separately (looks simple, but does not reflect the ANOVA model, not recommended)
+  sds<-tapply(biomass$Biomass,biomass$Fertilizer,sd)
+  ns<-tapply(biomass$Biomass,biomass$Fertilizer,length)
+  ses<-sds/sqrt(ns)
+  upper<-means+ses*qt(0.975,ns-1)
+  lower<-means-ses*qt(0.975,ns-1)
+# OR "family-wise", i.e. based on ANOVA results
+  # manually
+  MS<-144.9 # summary(aov.b)[[1]]$"Mean Sq"[nrow(summary(aov.b)[[1]])] # residual MS
+  df<-25 # summary(aov.b)[[1]]$"Df"[nrow(summary(aov.b)[[1]])] # residual Df
+  ns<-tapply(biomass$Biomass,biomass$Fertilizer,length)
+  ses<-sqrt(MS)/sqrt(ns)
+  lower<-means-ses*qt(0.975,df)
+  upper<-means+ses*qt(0.975,df)
+  # or using predict() to get standard errors
+  fit<-predict(aov.b,newdata=data.frame(Fertilizer=levels(biomass$Fertilizer)),se.fit=T)
+  means<-fit$fit
+  lower<-means-fit$se.fit*qt(0.975,fit$df)
+  upper<-means+fit$se.fit*qt(0.975,fit$df)
+# or using predict() to get confidence intervals directly; the outcome is matrix and must be converted to data.frame
+fit<-as.data.frame(predict(aov.b,newdata=data.frame(Fertilizer=levels(biomass$Fertilizer)),interval="confidence"))
+means<-fit$fit
+lower<-fit$lwr
+upper<-fit$upr
+  # or using special package
+  library(effects)    
+  lower<-effect("Fertilizer",aov.b)$lower
+  upper<-effect("Fertilizer",aov.b)$upper
+  # or you can indicate other measures with error bars, just standard error, or just standard deviation...
+## draw the barplot
+aa<-barplot(means, las=2, ylim=c(0, 210),names.arg=levels(biomass$Fertilizer)) # barplot uses weird x coordinates, you need to export them to be able to plot the error bars on the right place
+arrows(x0=aa,y0=lower, y1=upper, angle=90, code=3, length=0.05)
+text(c("a","b","b","c","b"), x=aa, y=upper+15)
+  ## or other type of plots...
+  plot(means,ylim=c(75, 195))
+  lines(means,lty=2) # lines help to highlight interactions, but visually imply ordered sequence of points, which is not true.
+  arrows(x0=1:5,y0=lower, y1=upper, angle=90, code=3, length=0.05)
+  text(c("a","b","b","c","b"), x=1:5, y=upper+10)
+  ## or directly means and CI based on ANOVA results using a special package (easy to make the plot but hard to adjust the graphics)
+  library(effects)    
+  plot(allEffects(aov.b))
+
+
+##Task 2 Herbivores
+herbivores<-read.delim("clipboard",stringsAsFactors=T)
+summary(herbivores)
+boxplot(SpRich~tree, data=herbivores)
+
+aov.h<-aov(SpRich~tree, data=herbivores)
+plot(aov.h)# Plot 2 shows too high positive residuals, plot 3 shows higher variability in groups with higher mean -> try to make log transformation
+plot(aov.h,which=2) # show plot 2 only
+boxplot(log(SpRich)~tree, data=herbivores)
+# Warning message: ... Outlier (-Inf) in boxplot 1 is not drawnaov.h<-aov(log(SpRich)~tree, data=herbivores)# log-transformed ANOVA
+boxplot(log(SpRich+1)~tree, data=herbivores) # adding a constant allows inclusion of zero
+# try to change the value of the constant (too large values cancel the effect of transformation, too small value place the zero points too far and highlight presence/absence)
+aov.h<-aov(log(SpRich+1)~tree, data=herbivores)# log-transformed ANOVA
+plot(aov.h,which=2)# improved normality
+summary(aov.h)
+#             Df Sum Sq Mean Sq F value  Pr(>F)   
+# tree         2  8.812   4.406   9.033 0.00119 **
+# Residuals   24 11.707   0.488                   
+
+## explained variation
+8.812/(8.812+11.707)
+# [1] 0.4294556
+
+## post-hoc test
+TukeyHSD(aov.h)
+#                    diff        lwr        upr     p adj
+# lime-beech    1.3970352  0.5748348 2.21923555 0.0008027
+# spruce-beech  0.6280544 -0.1941460 1.45025473 0.1582709
+# spruce-lime  -0.7689808 -1.5911812 0.05321956 0.0698583
+multcompLetters(TukeyHSD(aov.h)$tree[,4]) # beware of different order of factor levels
+# lime spruce  beech 
+# "a"   "ab"    "b" 
+
+## plot with linear scale
+boxplot(SpRich~tree, data=herbivores)
+text(c("a","b","ab"),x=1:3+0.2,y=37)
+
+##plot with log scale
+# The log="y" parameter, which normally makes y-axis logarithmic, does not work with zeros, so we must use a manual approach.
+boxplot(SpRich~tree, data=herbivores,log="y",ylab="species richness") 
+# Warning message: ... nonfinite axis limits ...
+boxplot(log(SpRich+1)~tree, data=herbivores,yaxt="n",ylab="species richness") # suppress axis plotting
+axis(side=2,at=log(c(0,1,2,5,10,20,40)+1),labels=c(0,1,2,5,10,20,40)) # draw values at transformed positions (same transformation as the data), but labeled with original values
+text(c("a","b","ab"),x=1:3+0.2,y=3.5)
+# Note the position of zero. By the +1 in log transformation we define how many times are values larger than zero.
+# This is mathematical nonsense, but allows to include zeros in the dataset.
+
+## see how p and explained variation behave with increasing sample size.
+# copy the same dataset 5 times (to have 45 obs. in each group)
+herbivores<-read.delim("clipboard",stringsAsFactors=T)
+summary(herbivores)
+boxplot(SpRich~tree, data=herbivores)
+aov.h<-aov(log(SpRich+1)~tree, data=herbivores)# log-transformed ANOVA
+summary(aov.h) # much lower p-value (many more observations)
+#              Df Sum Sq Mean Sq F value Pr(>F)    
+# tree          2  44.06  22.031   49.68 <2e-16 ***
+# Residuals   132  58.53   0.443                   
+44.06/(44.06+58.53) # same explained variation (same absolute differences between groups)
+# [1] 0.4294766
+
+
+## Task 3 Bulls - ordinal scale
+bulls<-read.delim("clipboard",stringsAsFactors=T)
+summary(bulls)
+boxplot(reaction~object,data=bulls,las=2)
+
+# rank-based test
+kruskal.test(reaction~object,data=bulls)
+#         Kruskal-Wallis rank sum test
+# data:  reaction by object
+# Kruskal-Wallis chi-squared = 13.479, df = 2, p-value = 0.001183
+
+  # or permutation test
+  library(coin)
+  oneway_test(reaction~object,data=bulls,distribution=approximate(nresample=100000))
+
+
+## Task 4
+plants<-read.delim("clipboard",stringsAsFactors=T)
+summary(plants)
+boxplot(Height~Nitrogen+Water,data=plants)
+
+aov.pl<-aov(Height~Nitrogen*Water,data=plants) # * indicates both main effects and interaction
+plot(aov.pl,which=2)
+summary(aov.pl)
+1140/(1140+2101+414+63) #explained variation by Nitrogen
+(1140+2101+414)/(1140+2101+414+63) #explained variation by the whole model
+
+## pre-compute model-based confidence intervals
+# using predict()
+pred<-expand.grid(Nitrogen=levels(plants$Nitrogen),Water=levels(plants$Water)) # result of expand.grid is a data.frame already
+fit<-as.data.frame(predict(aov.pl,newdata=pred,interval="confidence"))
+means<-fit$fit
+lower<-fit$lwr
+upper<-fit$upr
+pred # to check the order of the categories (should be same as in boxplots, if the factors were used in the same order)
+  # or using special package
+  library(effects)    
+  means<-effect("Nitrogen*Water",aov.pl)$fit
+  lower<-effect("Nitrogen*Water",aov.pl)$lower
+  upper<-effect("Nitrogen*Water",aov.pl)$upper
+  effect("Nitrogen*Water",aov.pl)$x
+  # unclass(effect("Nitrogen*Water",aov.pl))
+# plot
+plot(means,ylim=range(c(lower,upper)))
+arrows(x0=1:4,y0=lower, y1=upper, angle=90, code=3, length=0.05)
+
+TukeyHSD(aov.pl)
+
+## Task 5 rats
+rats<-read.delim("clipboard")
+summary(rats)
+boxplot(time~nutrition, data=rats)
+
+aov.r1<-aov(time~nutrition, data=rats)
+plot(aov.r1)
+# meeting assumptions not perfect, but not that bad
+
+summary(aov.r1)
+#             Df Sum Sq Mean Sq F value   Pr(>F)    
+# nutrition    3   5607  1869.0   19.78 1.24e-05 ***
+# Residuals   16   1512    94.5                     
+
+## compute explained variation:
+5607/(5607+1512)
+
+TukeyHSD(aov.r1)
+# diff         lwr       upr     p adj
+# control-beer   16.6  -0.9900376 34.190038 0.0678509
+# fat-beer       46.4  28.8099624 63.990038 0.0000064
+# sugar-beer     25.6   8.0099624 43.190038 0.0036699
+# fat-control    29.8  12.2099624 47.390038 0.0009242
+# sugar-control   9.0  -8.5900376 26.590038 0.4805645
+# sugar-fat     -20.8 -38.3900376 -3.209962 0.0178935
+multcompLetters(TukeyHSD(aov.r1)$nutrition[,4])
+# control     fat   sugar    beer 
+#    "ab"     "c"     "a"     "b" 
+multcompLetters4(aov.r1,TukeyHSD(aov.r1))
+# $nutrition
+#     fat   sugar control    beer 
+#     "a"     "b"    "bc"     "c" 
+
+boxplot(time~nutrition,data=rats,las=2,ylim=c(45,123))
+text(c("a","ab","c","b"), x=1:4, y=rep(120,4))
+
+## Task 6: ordinal response variable - use a non-parametric test
+
+## Task 7
+chlorophyll<-read.delim("clipboard",stringsAsFactors=T)
+summary(chlorophyll)
+boxplot(chlorophyll~soil,data=chlorophyll)
+aov.ch<-aov(chlorophyll~soil,data=chlorophyll)
+plot(aov.ch,which=2) # assumptions OK
+aov.ch<-aov(log(chlorophyll)~soil,data=chlorophyll)
+plot(aov.ch,which=2) # assumptions OK
+summary(aov.ch)
+#             Df Sum Sq Mean Sq F value Pr(>F)  
+# soil         2   7.04   3.522   4.058 0.0207 *
+# Residuals   87  75.51   0.868                 
+TukeyHSD(aov.ch)
+boxplot(chlorophyll~soil,data=chlorophyll,log="y")
+text(c("a","b","ab"), x=1:3, y=rep(15,3))
+
+# explained variation
+# manually
+6.86/(6.86+74.32)
+# [1] 0.08450357
+  # take sums of squares
+  temp<-summary(aov.ch)[[1]]$"Sum Sq"
+  temp[1]/sum(temp)
+  # [1] 0.08445039
+  # use R2 of linear model (next tutorial)
+  summary.lm(aov.ch)$r.squared
+  # [1] 0.08445039
+
+# Task 8
+# first part, simple one-way ANOVA
+cars<-read.delim("clipboard",stringsAsFactors=T)
+summary(cars)
+boxplot(speed~colour,data=cars)
+aov.cars<-aov(speed~colour,data=cars)
+summary(aov.cars)
+plot(allEffects(aov.cars))
+
+# second part, two-way ANOVA including brands
+boxplot(speed~brand,data=cars)
+boxplot(speed~colour+brand,data=cars)
+aov.cars<-aov(speed~colour+brand,data=cars)
+summary(aov.cars)
+temp<-summary(aov.cars)[[1]]$"Sum Sq"
+temp[1]/sum(temp)
+temp[2]/sum(temp)
+temp[3]/sum(temp)
+sum(temp[1:3])/sum(temp) # variation explained by whole model
+
+plot(allEffects(aov.cars))
+TukeyHSD(aov.cars)
+multcompLetters(TukeyHSD(aov.cars)$brand[,4])
+
+aov.cars<-aov(speed~colour*brand,data=cars)
+summary(aov.cars)
+plot(allEffects(aov.cars))
+plot(allEffects(aov.cars),
+     main=F,
+     lines=list(multiline=T,col=c("black","blue","red","yellow"),lty=2,lwd=1),
+     confint=list(style="bars"),
+     lattice=list(key.args=list(x=1,y=1,corner=c(1,1))),
+     axes=list(x=list(rotate=90)))
+TukeyHSD(aov.cars)
+multcompLetters(TukeyHSD(aov.cars)$brand[,4])
+multcompLetters(TukeyHSD(aov.cars)$"colour:brand"[,4]) # too many pairwise combinations, many of them missing
